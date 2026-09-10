@@ -1,0 +1,14 @@
+.DS_Store
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+build/
+dist/
+work/
+outputs/
+models/*.onnx
+models/*.txt
+!models/manifest.json
+!models/README.md
