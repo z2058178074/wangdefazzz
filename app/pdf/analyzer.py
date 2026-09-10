@@ -32,7 +32,12 @@ class PDFAnalyzer:
             raise RuntimeError("PDF 尚未打开")
         return len(self._pdf.pages)
 
-    def analyze_page(self, index: int, use_ocr: bool = False) -> PageContent:
+    def analyze_page(
+        self,
+        index: int,
+        use_ocr: bool = False,
+        preserve_tables: bool = True,
+    ) -> PageContent:
         if self._pdf is None:
             raise RuntimeError("PDF 尚未打开")
         if use_ocr:
@@ -45,7 +50,7 @@ class PDFAnalyzer:
             use_text_flow=False,
         )
         blocks = self._words_to_lines(words)
-        tables = extract_vector_tables(page)
+        tables = extract_vector_tables(page) if preserve_tables else []
         if tables:
             blocks = [
                 block

@@ -84,11 +84,26 @@ class PDFConverter:
         output = source.with_suffix(".docx")
         pages: List[PageContent] = []
         failed_pages: List[int] = []
+        if cancel is not None and cancel.is_cancelled():
+            message = "转换已取消"
+            return ConversionResult(source, None, False, [message], message, cancelled=True)
         try:
             with PDFAnalyzer(source) as analyzer, PDFRenderer(source) as renderer:
                 total = analyzer.page_count
                 logs.append(f"开始转换：{source.name}，共 {total} 页")
                 for index in range(total):
+                    if cancel is not None and cancel.is_cancelled():
+                        message = "转换已取消"
+                        logs.append(message)
+                        return ConversionResult(
+                            source,
+                            None,
+                            False,
+                            logs,
+                            message,
+                            failed_pages,
+                            cancelled=True,
+                        )
                     try:
                         mode = (
                             classify_page(analyzer.page_stats(index))
@@ -96,7 +111,11 @@ class PDFConverter:
                             else ConversionMode.TEXT
                         )
                         if mode is ConversionMode.OCR:
-                            text_page = analyzer.analyze_page(index, use_ocr=False)
+                            text_page = analyzer.analyze_page(
+                                index,
+                                use_ocr=False,
+                                preserve_tables=False,
+                            )
                             image = renderer.render_page(index, dpi=220)
                             engine = self.ocr_engine or OCREngine()
                             detected = engine.recognize(image)
@@ -142,7 +161,11 @@ class PDFConverter:
                                 tables=tables,
                             )
                         else:
-                            page = analyzer.analyze_page(index, use_ocr=False)
+                            page = analyzer.analyze_page(
+                                index,
+                                use_ocr=False,
+                                preserve_tables=options.preserve_tables,
+                            )
                             page.mode = mode
                         pages.append(page)
                         logs.append(f"第 {index + 1}/{total} 页：{mode.value}")

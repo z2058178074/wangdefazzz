@@ -42,6 +42,22 @@ def test_text_pdf_table_becomes_editable_word_table(tmp_path: Path) -> None:
     assert values == [["Item", "Amount"], ["Revenue", "1,234.56"]]
 
 
+def test_can_disable_table_preservation_without_losing_text(tmp_path: Path) -> None:
+    source = tmp_path / "plain-output.pdf"
+    make_financial_table(source)
+
+    result = PDFConverter().convert_file(
+        source,
+        ConversionOptions(enable_ocr=False, preserve_tables=False),
+    )
+
+    doc = Document(result.output_path)
+    assert len(doc.tables) == 0
+    text = "\n".join(paragraph.text for paragraph in doc.paragraphs)
+    assert "Revenue" in text
+    assert "1,234.56" in text
+
+
 def test_scanned_financial_grid_becomes_editable_word_table(tmp_path: Path) -> None:
     source = tmp_path / "scanned-financial-table.pdf"
     pixels = np.full((240, 400, 3), 255, dtype=np.uint8)
