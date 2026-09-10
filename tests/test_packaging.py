@@ -3,6 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from app.ocr.engine import OCREngine
 from scripts.prepare_models import prepare_models
 
@@ -41,7 +43,8 @@ def test_distribution_smoke_script_checks_exe_models_and_dependencies() -> None:
     assert "dependencies" in script
 
 
-def test_windows_build_script_runs_directly_from_repository_root() -> None:
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows 上由 CI 的真实构建步骤验证")
+def test_windows_build_script_rejects_non_windows_host() -> None:
     completed = subprocess.run(
         [sys.executable, "scripts/build_windows.py"],
         cwd=ROOT,
