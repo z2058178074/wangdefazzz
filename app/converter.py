@@ -4,8 +4,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List, Optional
 
-from app.models import ConversionResult, PageContent, ProgressEvent
+from app.models import ConversionMode, ConversionResult, PageContent, ProgressEvent, TextBlock
+from app.ocr.engine import OCREngine
 from app.pdf.analyzer import PDFAnalyzer
+from app.pdf.classifier import classify_page
+from app.pdf.renderer import PDFRenderer
 from app.word.writer import WordWriter
 
 
@@ -16,8 +19,13 @@ class ConversionOptions:
 
 
 class PDFConverter:
-    def __init__(self, writer: Optional[WordWriter] = None):
+    def __init__(
+        self,
+        writer: Optional[WordWriter] = None,
+        ocr_engine: Optional[OCREngine] = None,
+    ):
         self.writer = writer or WordWriter()
+        self.ocr_engine = ocr_engine
 
     def convert_file(
         self,
@@ -40,14 +48,60 @@ class PDFConverter:
         pages: List[PageContent] = []
         failed_pages: List[int] = []
         try:
-            with PDFAnalyzer(source) as analyzer:
+            with PDFAnalyzer(source) as analyzer, PDFRenderer(source) as renderer:
                 total = analyzer.page_count
                 logs.append(f"开始转换：{source.name}，共 {total} 页")
                 for index in range(total):
                     try:
-                        page = analyzer.analyze_page(index, use_ocr=False)
+                        mode = (
+                            classify_page(analyzer.page_stats(index))
+                            if options.enable_ocr
+                            else ConversionMode.TEXT
+                        )
+                        if mode is ConversionMode.OCR:
+                            text_page = analyzer.analyze_page(index, use_ocr=False)
+                            image = renderer.render_page(index, dpi=220)
+                            engine = self.ocr_engine or OCREngine()
+                            detected = engine.recognize(image)
+                            scale_x = text_page.width / image.shape[1]
+                            scale_y = text_page.height / image.shape[0]
+                            detected = [
+                                TextBlock(
+                                    block.text,
+                                    (
+                                        block.bbox[0] * scale_x,
+                                        block.bbox[1] * scale_y,
+                                        block.bbox[2] * scale_x,
+                                        block.bbox[3] * scale_y,
+                                    ),
+                                    block.confidence,
+                                )
+                                for block in detected
+                            ]
+                            page = PageContent(
+                                index + 1,
+                                text_page.width,
+                                text_page.height,
+                                mode=mode,
+                                text_blocks=detected,
+                            )
+                        else:
+                            page = analyzer.analyze_page(index, use_ocr=False)
+                            page.mode = mode
                         pages.append(page)
-                        logs.append(f"第 {index + 1}/{total} 页：文字提取")
+                        logs.append(f"第 {index + 1}/{total} 页：{mode.value}")
+                        if progress is not None:
+                            progress(
+                                ProgressEvent(
+                                    file_path=source,
+                                    file_index=1,
+                                    file_count=1,
+                                    page_number=index + 1,
+                                    page_count=total,
+                                    mode=mode,
+                                    percent=round((index + 1) / max(total, 1) * 100),
+                                )
+                            )
                     except Exception as exc:  # page isolation is deliberate
                         failed_pages.append(index + 1)
                         message = str(exc) or exc.__class__.__name__

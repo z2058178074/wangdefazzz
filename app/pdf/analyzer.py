@@ -6,6 +6,7 @@ from typing import List
 import pdfplumber
 
 from app.models import PageContent, TextBlock
+from app.pdf.classifier import PageStats
 
 
 class PDFAnalyzer:
@@ -48,6 +49,29 @@ class PDFAnalyzer:
             width=float(page.width),
             height=float(page.height),
             text_blocks=blocks,
+        )
+
+    def page_stats(self, index: int) -> PageStats:
+        if self._pdf is None:
+            raise RuntimeError("PDF 尚未打开")
+        page = self._pdf.pages[index]
+        area = max(float(page.width) * float(page.height), 1.0)
+        chars = page.chars
+        char_count = sum(1 for char in chars if str(char.get("text", "")).strip())
+        text_area = sum(
+            max(0.0, float(char["x1"]) - float(char["x0"]))
+            * max(0.0, float(char["bottom"]) - float(char["top"]))
+            for char in chars
+        )
+        image_area = sum(
+            max(0.0, float(item["x1"]) - float(item["x0"]))
+            * max(0.0, float(item["bottom"]) - float(item["top"]))
+            for item in page.images
+        )
+        return PageStats(
+            char_count=char_count,
+            text_area_ratio=min(1.0, text_area / area),
+            image_area_ratio=min(1.0, image_area / area),
         )
 
     @staticmethod
