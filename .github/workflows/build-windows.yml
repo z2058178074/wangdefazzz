@@ -11,6 +11,8 @@ jobs:
   build-windows:
     runs-on: windows-latest
     timeout-minutes: 45
+    env:
+      PYTHONUTF8: '1'
 
     steps:
       - name: 检出代码

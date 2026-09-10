@@ -12,6 +12,7 @@ def test_windows_workflow_builds_tests_zips_and_uploads_portable_artifact() -> N
         "windows-latest",
         "actions/setup-python",
         "python-version: '3.11'",
+        "PYTHONUTF8: '1'",
         "pip install -r requirements-dev.txt",
         "pytest",
         "scripts/prepare_models.py",
