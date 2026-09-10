@@ -4,11 +4,21 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List, Optional
 
-from app.models import ConversionMode, ConversionResult, PageContent, ProgressEvent, TextBlock
+from app.models import (
+    ConversionMode,
+    ConversionResult,
+    PageContent,
+    ProgressEvent,
+    TableCell,
+    TableData,
+    TextBlock,
+)
 from app.ocr.engine import OCREngine
 from app.pdf.analyzer import PDFAnalyzer
 from app.pdf.classifier import classify_page
 from app.pdf.renderer import PDFRenderer
+from app.table.assign import assign_blocks
+from app.table.raster import RasterGridDetector
 from app.word.writer import WordWriter
 
 
@@ -26,6 +36,33 @@ class PDFConverter:
     ):
         self.writer = writer or WordWriter()
         self.ocr_engine = ocr_engine
+
+    @staticmethod
+    def _scale_table(table: TableData, scale_x: float, scale_y: float) -> TableData:
+        def scale(bbox):
+            return (
+                bbox[0] * scale_x,
+                bbox[1] * scale_y,
+                bbox[2] * scale_x,
+                bbox[3] * scale_y,
+            )
+
+        return TableData(
+            table.rows,
+            table.cols,
+            scale(table.bbox),
+            [
+                TableCell(
+                    cell.row,
+                    cell.col,
+                    scale(cell.bbox),
+                    cell.text,
+                    cell.row_span,
+                    cell.col_span,
+                )
+                for cell in table.cells
+            ],
+        )
 
     def convert_file(
         self,
@@ -65,6 +102,24 @@ class PDFConverter:
                             detected = engine.recognize(image)
                             scale_x = text_page.width / image.shape[1]
                             scale_y = text_page.height / image.shape[0]
+                            tables = []
+                            if options.preserve_tables:
+                                raster_table = RasterGridDetector().detect(image)
+                                if raster_table is not None:
+                                    assigned = assign_blocks(raster_table, detected)
+                                    tables.append(self._scale_table(assigned, scale_x, scale_y))
+                                    detected = [
+                                        block
+                                        for block in detected
+                                        if not (
+                                            raster_table.bbox[0]
+                                            <= (block.bbox[0] + block.bbox[2]) / 2
+                                            <= raster_table.bbox[2]
+                                            and raster_table.bbox[1]
+                                            <= (block.bbox[1] + block.bbox[3]) / 2
+                                            <= raster_table.bbox[3]
+                                        )
+                                    ]
                             detected = [
                                 TextBlock(
                                     block.text,
@@ -84,6 +139,7 @@ class PDFConverter:
                                 text_page.height,
                                 mode=mode,
                                 text_blocks=detected,
+                                tables=tables,
                             )
                         else:
                             page = analyzer.analyze_page(index, use_ocr=False)

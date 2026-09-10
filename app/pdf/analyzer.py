@@ -7,6 +7,7 @@ import pdfplumber
 
 from app.models import PageContent, TextBlock
 from app.pdf.classifier import PageStats
+from app.table.vector import extract_vector_tables
 
 
 class PDFAnalyzer:
@@ -44,11 +45,23 @@ class PDFAnalyzer:
             use_text_flow=False,
         )
         blocks = self._words_to_lines(words)
+        tables = extract_vector_tables(page)
+        if tables:
+            blocks = [
+                block
+                for block in blocks
+                if not any(
+                    table.bbox[0] <= (block.bbox[0] + block.bbox[2]) / 2 <= table.bbox[2]
+                    and table.bbox[1] <= (block.bbox[1] + block.bbox[3]) / 2 <= table.bbox[3]
+                    for table in tables
+                )
+            ]
         return PageContent(
             page_number=index + 1,
             width=float(page.width),
             height=float(page.height),
             text_blocks=blocks,
+            tables=tables,
         )
 
     def page_stats(self, index: int) -> PageStats:
