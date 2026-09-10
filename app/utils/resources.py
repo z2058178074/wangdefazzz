@@ -7,7 +7,10 @@ from pathlib import Path
 def application_root() -> Path:
     """Return source root or PyInstaller bundle root."""
     if getattr(sys, "frozen", False):
-        return Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+        executable_root = Path(sys.executable).resolve().parent
+        if (executable_root / "models").is_dir():
+            return executable_root
+        return Path(getattr(sys, "_MEIPASS", executable_root))
     return Path(__file__).resolve().parents[2]
 
 
