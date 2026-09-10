@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Qt
+from PySide6.QtCore import QThread
 from PySide6.QtWidgets import (
     QCheckBox,
     QFileDialog,
@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QMainWindow,
-    QMessageBox,
     QProgressBar,
     QPushButton,
     QPlainTextEdit,

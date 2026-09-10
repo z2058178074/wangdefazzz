@@ -10,5 +10,6 @@ work/
 outputs/
 models/*.onnx
 models/*.txt
+:memory:.ses
 !models/manifest.json
 !models/README.md

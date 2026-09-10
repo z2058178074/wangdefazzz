@@ -6,6 +6,7 @@ from PIL import Image
 from docx import Document
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
+from docx.oxml.ns import qn
 
 from app.converter import ConversionOptions, PDFConverter
 from app.models import TextBlock
@@ -89,3 +90,31 @@ def test_scanned_financial_grid_becomes_editable_word_table(tmp_path: Path) -> N
         ["项目", "金额"],
         ["营业收入", "9,876.54"],
     ]
+
+
+def test_paragraphs_and_tables_follow_vertical_page_order(tmp_path: Path) -> None:
+    source = tmp_path / "ordered-layout.pdf"
+    pdf = canvas.Canvas(str(source), pagesize=(500, 400))
+    pdf.drawString(40, 360, "Before the table")
+    for x in (40, 250, 460):
+        pdf.line(x, 150, x, 300)
+    for y in (150, 225, 300):
+        pdf.line(40, y, 460, y)
+    pdf.drawString(55, 260, "Header A")
+    pdf.drawString(270, 260, "Header B")
+    pdf.drawString(55, 185, "Value A")
+    pdf.drawString(270, 185, "Value B")
+    pdf.drawString(40, 100, "After the table")
+    pdf.save()
+
+    result = PDFConverter().convert_file(source, ConversionOptions(enable_ocr=False))
+    body = Document(result.output_path).element.body
+    order = []
+    for child in body.iterchildren():
+        if child.tag == qn("w:p"):
+            text = "".join(node.text or "" for node in child.iter(qn("w:t")))
+            if text:
+                order.append(text)
+        elif child.tag == qn("w:tbl"):
+            order.append("TABLE")
+    assert order == ["Before the table", "TABLE", "After the table"]

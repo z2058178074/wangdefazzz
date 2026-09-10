@@ -5,7 +5,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.prepare_models import prepare_models
+try:
+    from scripts.prepare_models import prepare_models
+except ModuleNotFoundError:
+    from prepare_models import prepare_models
 
 
 ROOT = Path(__file__).resolve().parents[1]

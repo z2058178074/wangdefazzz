@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from typing import Callable, List, Optional
+
+from PIL import Image
 
 from app.models import (
     ConversionMode,
     ConversionResult,
+    ImageBlock,
     PageContent,
     ProgressEvent,
     TableCell,
@@ -166,6 +170,29 @@ class PDFConverter:
                                 use_ocr=False,
                                 preserve_tables=options.preserve_tables,
                             )
+                            image_bboxes = analyzer.image_bboxes(index)
+                            if image_bboxes:
+                                rendered = renderer.render_page(index, dpi=144)
+                                scale_x = rendered.shape[1] / page.width
+                                scale_y = rendered.shape[0] / page.height
+                                page_area = max(page.width * page.height, 1.0)
+                                for bbox in image_bboxes:
+                                    image_area = max(0.0, bbox[2] - bbox[0]) * max(
+                                        0.0, bbox[3] - bbox[1]
+                                    )
+                                    if image_area / page_area > 0.85:
+                                        continue
+                                    left = max(0, round(bbox[0] * scale_x))
+                                    top = max(0, round(bbox[1] * scale_y))
+                                    right = min(rendered.shape[1], round(bbox[2] * scale_x))
+                                    bottom = min(rendered.shape[0], round(bbox[3] * scale_y))
+                                    if right <= left or bottom <= top:
+                                        continue
+                                    stream = BytesIO()
+                                    Image.fromarray(rendered[top:bottom, left:right]).save(
+                                        stream, format="PNG"
+                                    )
+                                    page.images.append(ImageBlock(stream.getvalue(), bbox))
                             page.mode = mode
                         pages.append(page)
                         logs.append(f"第 {index + 1}/{total} 页：{mode.value}")

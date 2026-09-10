@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 from app.ocr.engine import OCREngine
@@ -37,3 +39,28 @@ def test_distribution_smoke_script_checks_exe_models_and_dependencies() -> None:
     assert "PDF转Word.exe" in script
     assert "OCR 模型" in script
     assert "dependencies" in script
+
+
+def test_windows_build_script_runs_directly_from_repository_root() -> None:
+    completed = subprocess.run(
+        [sys.executable, "scripts/build_windows.py"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    output = completed.stdout + completed.stderr
+    assert completed.returncode != 0
+    assert "Windows 发行包必须" in output
+    assert "ModuleNotFoundError" not in output
+
+
+def test_frozen_smoke_probe_initializes_ocr_models() -> None:
+    source = (ROOT / "app" / "main.py").read_text(encoding="utf-8")
+    assert "OCREngine().recognize" in source
+
+
+def test_runtime_uses_qt_essentials_without_large_addons_bundle() -> None:
+    requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+    assert any(line.startswith("PySide6-Essentials") for line in requirements)
+    assert not any(line.startswith("PySide6>") or line.startswith("PySide6=") for line in requirements)

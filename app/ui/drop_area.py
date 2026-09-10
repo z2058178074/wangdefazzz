@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QLabel
 
 
@@ -12,7 +12,7 @@ class DropArea(QLabel):
         self.setAcceptDrops(True)
         self.setObjectName("dropArea")
         self.setMinimumHeight(126)
-        self.setAlignment(__import__("PySide6.QtCore", fromlist=["Qt"]).Qt.AlignmentFlag.AlignCenter)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     def dragEnterEvent(self, event) -> None:
         if event.mimeData().hasUrls() and any(

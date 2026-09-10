@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from io import BytesIO
 from typing import Iterable
 
 from docx import Document
-from docx.enum.section import WD_SECTION_START
-from docx.shared import Pt
+from docx.shared import Inches, Pt
 
 from app.models import PageContent
 from app.word.tables import add_table
@@ -22,11 +22,25 @@ class WordWriter:
         normal.font.size = Pt(10.5)
 
         for page_index, page in enumerate(page_list):
-            for block in sorted(page.text_blocks, key=lambda item: (item.bbox[1], item.bbox[0])):
-                paragraph = document.add_paragraph(block.text)
-                paragraph.paragraph_format.space_after = Pt(2)
-            for table in sorted(page.tables, key=lambda item: (item.bbox[1], item.bbox[0])):
-                add_table(document, table)
+            items = (
+                [("text", block) for block in page.text_blocks]
+                + [("table", table) for table in page.tables]
+                + [("image", image) for image in page.images]
+            )
+            for kind, item in sorted(items, key=lambda pair: (pair[1].bbox[1], pair[1].bbox[0])):
+                if kind == "text":
+                    paragraph = document.add_paragraph(item.text)
+                    paragraph.paragraph_format.space_after = Pt(2)
+                elif kind == "table":
+                    add_table(document, item)
+                else:
+                    paragraph = document.add_paragraph()
+                    width_inches = min(
+                        max((item.bbox[2] - item.bbox[0]) / 72.0, 0.5), 6.5
+                    )
+                    paragraph.add_run().add_picture(
+                        BytesIO(item.data), width=Inches(width_inches)
+                    )
             if page.error:
                 document.add_paragraph(f"[第 {page.page_number} 页转换失败：{page.error}]")
             if page_index < len(page_list) - 1:

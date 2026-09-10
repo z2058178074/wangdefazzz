@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 import pdfplumber
 
@@ -91,6 +91,20 @@ class PDFAnalyzer:
             text_area_ratio=min(1.0, text_area / area),
             image_area_ratio=min(1.0, image_area / area),
         )
+
+    def image_bboxes(self, index: int) -> List[Tuple[float, float, float, float]]:
+        if self._pdf is None:
+            raise RuntimeError("PDF 尚未打开")
+        page = self._pdf.pages[index]
+        return [
+            (
+                float(item["x0"]),
+                float(item["top"]),
+                float(item["x1"]),
+                float(item["bottom"]),
+            )
+            for item in page.images
+        ]
 
     @staticmethod
     def _words_to_lines(words: list, tolerance: float = 3.0) -> List[TextBlock]:

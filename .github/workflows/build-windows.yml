@@ -1,0 +1,50 @@
+name: 构建 Windows 便携版
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: 安装依赖
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: 准备离线 OCR 模型
+        run: python scripts/prepare_models.py models
+
+      - name: 运行测试
+        run: python -m pytest -q
+
+      - name: 使用 PyInstaller 构建便携目录
+        run: python scripts/build_windows.py
+
+      - name: 检查发行目录和程序启动
+        run: python scripts/smoke_dist.py "dist/PDF转Word-Windows"
+
+      - name: 压缩 Windows 便携版
+        shell: pwsh
+        run: Compress-Archive -Path "dist/PDF转Word-Windows" -DestinationPath "PDF转Word-Windows.zip" -Force
+
+      - name: 上传 GitHub Actions Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PDF转Word-Windows
+          path: PDF转Word-Windows.zip
+          if-no-files-found: error
+          retention-days: 30
